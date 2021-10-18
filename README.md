@@ -1,3 +1,5 @@
+![banner](images/banner.png)
+
 # Unit testing NestJS with Typeorm in memory
 
 Assuming you already configured TypeORM in your NestJS project.
