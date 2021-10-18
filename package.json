@@ -1,10 +1,10 @@
 {
   "name": "unit-testing-nestjs-using-typeorm-in-memory",
-  "version": "0.0.1",
-  "description": "",
-  "author": "",
+  "version": "0.0.0",
+  "description": "a dev.to article on unit testing nestjs project using typeorm and in memory db",
+  "author": "Julien Prugne <julien@webeleon.dev>",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
   "scripts": {
     "prebuild": "rimraf dist",
     "build": "nest build",
