@@ -1,73 +1,112 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo_text.svg" width="320" alt="Nest Logo" /></a>
-</p>
+# Unit testing NestJS with Typeorm in memory
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Assuming you already configured TypeORM in your NestJS project.
+If you need to setup TypeORM, consider reading the [awesome NestJS documentation](https://docs.nestjs.com/techniques/database).
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://coveralls.io/github/nestjs/nest?branch=master" target="_blank"><img src="https://coveralls.io/repos/github/nestjs/nest/badge.svg?branch=master#9" alt="Coverage" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+For the sake of testing something, I'll setup a simple API that will serve spaceships! You can access the [sample repository on github](https://github.com/Webeleon/unit-testing-nestjs-using-typeorm-in-memory).
 
-## Description
-
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Installation
+## Install SQLITE
 
 ```bash
-$ npm install
+npm i -D better-sqlite3
 ```
 
-## Running the app
+## A few helpers
 
-```bash
-# development
-$ npm run start
+Ok, we can write this for every test files BUT we are lazy developers and will not spend our time re-writing the same code over and over and over...
 
-# watch mode
-$ npm run start:dev
+Let's write a simple helper function that will provide an easy to import pre-configured TypeORM module!
+`src/test-utils/TypeORMSQLITETestingModule.ts`
 
-# production mode
-$ npm run start:prod
+```ts
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { Spaceship } from '../spaceships/spaceship.entity';
+
+export const TypeOrmSQLITETestingModule = () => [
+  TypeOrmModule.forRoot({
+    type: 'better-sqlite3',
+    database: ':memory:',
+    dropSchema: true,
+    entities: [Spaceship],
+    synchronize: true,
+  }),
+  TypeOrmModule.forFeature([Spaceship]),
+];
 ```
 
-## Test
+This one is not mandatory but a simple test dataset is always a nice to have. `src/test-utils/testDataset.seed.ts`
 
-```bash
-# unit tests
-$ npm run test
+```ts
+import { getConnection } from 'typeorm';
+import { Spaceship } from '../spaceships/spaceship.entity';
 
-# e2e tests
-$ npm run test:e2e
+export const testDatasetSeed = async () => {
+  const connection = await getConnection();
+  const entityManager = connection.createEntityManager();
 
-# test coverage
-$ npm run test:cov
+  entityManager.insert<Spaceship>(Spaceship, {
+    name: 'moa',
+    type: 'cruiser',
+    origin: 'caldari',
+  });
+  entityManager.insert<Spaceship>(Spaceship, {
+    name: 'caracal',
+    type: 'cruiser',
+    origin: 'caldari',
+  });
+  entityManager.insert<Spaceship>(Spaceship, {
+    name: 'rokh',
+    type: 'battleship',
+    origin: 'caldari',
+  });
+};
 ```
 
-## Support
+## Using the helpers in a test file
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+In order to allow tests to use the im memory database, you'll just need to call the function `...TypeOrmSQLITETestingModule()` and spread it since it provide the `TypeOrmModule.forRoot` and `TypeOrmModule.forFeature`.
 
-## Stay in touch
+Finally, seed the test data (or not) `await testDatasetSeed();`.
 
-- Author - [Kamil Myśliwiec](https://kamilmysliwiec.com)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+```ts
+import { Test, TestingModule } from '@nestjs/testing';
+import { SpaceshipsService } from './spaceships.service';
+import { TypeOrmSQLITETestingModule } from '../test-utils/TypeOrmSQLITETestingModule';
+import { testDatasetSeed } from '../test-utils/testDataset.seed';
 
-## License
+describe('SpaceshipsService', () => {
+  let service: SpaceshipsService;
 
-Nest is [MIT licensed](LICENSE).
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      imports: [...TypeOrmSQLITETestingModule()],
+      providers: [SpaceshipsService],
+    }).compile();
+
+    service = module.get<SpaceshipsService>(SpaceshipsService);
+    await testDatasetSeed();
+  });
+
+  it('listSpaceships', async () => {
+    const spaceships = await service.listSpaceships();
+    expect(spaceships).toHaveLength(3);
+  });
+});
+```
+
+## Questions?
+
+![https://media.giphy.com/media/Ss0aKjyh6UgHhnv0yG/giphy.gif](https://media.giphy.com/media/Ss0aKjyh6UgHhnv0yG/giphy.gif)
+
+I'll be glad to answers questions in the comments.
+
+If you liked my discord consider joining my coding lair!
+:phone:[Webeleon coding lair on discord](https://discord.gg/h7HzYzD82p)
+
+You can also email me and offer me a contract :moneybag:
+:envelope:[Email me!](julien@webeleon.dev)
+
+And since I'm a nice guy, here, take this sample repo containing a working codebase!
+:gift:[Get the code of the tuto from github](https://github.com/Webeleon/unit-testing-nestjs-using-typeorm-in-memory)
+
+<script type="text/javascript" src="https://cdnjs.buymeacoffee.com/1.0.0/button.prod.min.js" data-name="bmc-button" data-slug="webeleon" data-color="#FFDD00" data-emoji="" data-font="Cookie" data-text="Buy me a coffee" data-outline-color="#000000" data-font-color="#000000" data-coffee-color="#ffffff" ></script>
